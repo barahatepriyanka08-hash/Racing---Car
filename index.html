@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>City Racer – Nitro Edition</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
+<style>
+:root {
+    --neon-red: #ff3c3c;
+    --glass: rgba(255, 255, 255, 0.05);
+    --dark-bg: #0b0f1a;
+}
+body, html {
+    margin:0; padding:0; width:100%; height:100%;
+    overflow:hidden; font-family:'Orbitron',sans-serif; background-color:#000;
+}
+canvas { display:block; position:fixed; top:0; left:0; z-index:1; }
+
+/* Overlay base */
+.overlay {
+    position:fixed; top:0; left:0; width:100%; height:100%;
+    z-index:10; display:flex; justify-content:center; align-items:center;
+    background: radial-gradient(circle at center, rgba(11,15,26,0.9) 0%, #000 100%);
+    transition:opacity 0.5s ease;
+}
+.hidden { display:none !important; opacity:0; pointer-events:none; }
+.menu-content { text-align:center; color:white; max-width:800px; }
+
+/* Typography */
+.logo-text {
+    font-size:5rem; font-weight:900;
+    background: linear-gradient(to bottom, #fff 40%, var(--neon-red) 100%);
+    -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; color:transparent;
+    filter: drop-shadow(0 0 20px rgba(255,60,60,0.4)); margin:0;
+}
+.subtitle { letter-spacing:5px; color:#888; margin-bottom:40px; text-transform:uppercase; }
+
+/* Level Cards */
+.level-grid { display:flex; gap:20px; margin-bottom:50px; }
+.level-card {
+    background:var(--glass); border:1px solid rgba(255,255,255,0.1);
+    padding:30px; width:180px; cursor:pointer; transition:0.3s;
+    clip-path: polygon(0 0, 100% 0, 100% 85%, 85% 100%, 0 100%);
+}
+.level-card:hover:not(.locked) { background:rgba(255,60,60,0.1); border-color:var(--neon-red); transform:translateY(-10px);}
+.level-card.locked { opacity:0.4; cursor:not-allowed; filter:grayscale(1);}
+.lvl-num { font-size:2.5rem; color:var(--neon-red); display:block; margin-bottom:10px; }
+
+/* HUD */
+#hud {
+    position:fixed; bottom:30px; left:50%; transform:translateX(-50%);
+    z-index:5; display:flex; gap:50px; background:rgba(0,0,0,0.7);
+    padding:15px 50px; border-top:3px solid var(--neon-red);
+    backdrop-filter: blur(10px); border-radius:5px;
+}
+.hud-item { text-align:center; color:white; }
+.hud-item small { display:block; font-size:10px; color:var(--neon-red); margin-bottom:5px; }
+.hud-item span { font-size:28px; font-weight:900; }
+
+/* Game Over / Glass Panel */
+.glass-panel { background: rgba(255,255,255,0.03); backdrop-filter: blur(10px); padding:60px 80px; border:1px solid rgba(255,60,60,0.2); box-shadow:0 0 40px rgba(0,0,0,0.5); text-align:center; }
+.totaled-text { color:var(--neon-red); font-size:4rem; margin:0; animation: glitch 1s infinite alternate; }
+.final-score-val { font-size:5rem; display:block; color:#fff; margin:20px 0; font-weight:900; }
+
+/* Buttons */
+.btn-primary, .btn-retry { padding:18px 60px; background:var(--neon-red); border:none; color:white; font-family:'Orbitron'; font-weight:900; cursor:pointer; transition:0.3s; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0% 100%); text-transform:uppercase; margin:10px; }
+.btn-primary:hover, .btn-retry:hover { background:white; color:var(--neon-red); box-shadow:0 0 30px var(--neon-red);}
+.btn-back { background:transparent; border:1px solid #555; color:#888; padding:10px 30px; cursor:pointer; font-family:'Orbitron'; }
+
+/* Animations */
+@keyframes glitch { 0%{transform:skew(0deg);}5%{transform:skew(2deg);}10%{transform:skew(-2deg);}15%{transform:skew(0deg);}100%{transform:skew(0deg);} }
+@keyframes neonPulse { 0% { text-shadow: 0 0 5px #ff3c3c, 0 0 10px #ff3c3c; } 50% { text-shadow: 0 0 20px #ff3c3c,0 0 40px #ff3c3c;} 100% { text-shadow:0 0 5px #ff3c3c,0 0 10px #ff3c3c; } }
+.loading-text { animation: neonPulse 1s infinite alternate; }
+
+/* Loading bar */
+#loadingBar { height:100%; width:0%; background: linear-gradient(90deg, #ff3c3c, #ff7f7f); box-shadow: 0 0 10px #ff3c3c, 0 0 20px #ff3c3c, 0 0 30px #ff3c3c; transition: width 0.1s linear; border-radius:2px; }
+
+/* Small corner logo for all pages */
+.page-logo { position: fixed; top: 15px; left: 15px; font-family: 'Orbitron', sans-serif; font-size: 1.2rem; font-weight: 900; color: var(--neon-red); text-shadow: 0 0 5px #ff3c3c, 0 0 10px #ff3c3c; z-index: 20; pointer-events: none; }
+
+/* Level Unlock Notification */
+#unlockMsg {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-20px);
+    background: rgba(255, 60, 60, 0.9); color: white; padding: 15px 30px; border-radius: 5px;
+    font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 1.2rem;
+    z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.5s ease, transform 0.5s ease;
+}
+#unlockMsg.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- Small corner logo -->
+<div class="page-logo">City Racer</div>
+
+<!-- Unlock message -->
+<div id="unlockMsg"></div>
+
+<!-- Splash Screen -->
+<div id="splashScreen" class="overlay">
+    <div class="menu-content">
+        <h1 class="logo-text">CITY RACER</h1>
+        <p class="subtitle">Nitro Edition • Underground Velocity</p>
+        <button class="btn-primary" onclick="showLoading()">START ENGINE</button>
+    </div>
+</div>
+
+<!-- Loading Screen -->
+<div id="loadingScreen" class="overlay hidden">
+    <div class="menu-content">
+        <h1 class="logo-text loading-text">LOADING...</h1>
+        <div style="height:6px; width:250px; background: rgba(255,255,255,0.1); border-radius:3px; margin-top:30px; overflow:hidden;">
+            <div id="loadingBar"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Info Screen -->
+<div id="infoScreen" class="overlay hidden">
+    <div class="glass-panel">
+        <h2 style="color:white; margin-bottom:20px;">GAME INFO</h2>
+        <p style="color:#aaa; line-height:1.5;">
+            Welcome to City Racer – Nitro Edition! <br>
+            Drive through night streets, dodge traffic and obstacles, and reach top scores to unlock new circuits.
+        </p>
+        <p style="color:#aaa; line-height:1.5;">
+            Level 1: Easy – 2 lanes <br>
+            Level 2: Medium – Barriers added <br>
+            Level 3: Hard – Dense traffic + enemy lane changes
+        </p>
+        <p style="color:#aaa; line-height:1.5;">
+            Unlocking Levels: Score higher to unlock next circuits. Track your high score to open new challenges!
+        </p>
+        <p style="color:#aaa; line-height:1.5;">
+            Keys: W = speed / Space = brake / ← = left / → = right
+        </p>
+        <div style="margin-top:30px;">
+            <button class="btn-primary" onclick="showLevelSelect()">CONTINUE</button>
+            <button class="btn-back" onclick="backToMain()">BACK</button>
+        </div>
+    </div>
+</div>
+
+<!-- Level Select -->
+<div id="levelSelect" class="overlay hidden">
+    <div class="menu-content">
+        <h2 style="letter-spacing:5px; margin-bottom:30px; color:white;">SELECT CIRCUIT</h2>
+        <div class="level-grid">
+            <div class="level-card" onclick="startLevel(1)">
+                <span class="lvl-num">01</span>
+                <p>MIDNIGHT</p>
+                <small>Easy • 2 Lanes</small>
+            </div>
+            <div class="level-card locked" id="lvl2" onclick="startLevel(2)">
+                <span class="lvl-num">02</span>
+                <p>NEON BLVD</p>
+                <small>Medium • Fast</small>
+            </div>
+            <div class="level-card locked" id="lvl3" onclick="startLevel(3)">
+                <span class="lvl-num">03</span>
+                <p>STORM RUN</p>
+                <small>Hard • Dense</small>
+            </div>
+        </div>
+        <button class="btn-back" onclick="hideLevels()">BACK TO MAIN</button>
+    </div>
+</div>
+
+<!-- Game Over -->
+<div id="gameOverScreen" class="overlay hidden">
+    <div class="glass-panel">
+        <h1 class="totaled-text">TOTALED</h1>
+        <div style="color:#aaa; letter-spacing:3px; margin-top:20px;">DISTANCE COVERED</div>
+        <span id="finalScore" class="final-score-val">0</span>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+            <button class="btn-retry" onclick="restartGame()">Try Again</button>
+            <button class="btn-back" onclick="location.reload()">Main Menu</button>
+        </div>
+    </div>
+</div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+    <div class="hud-item"><small>KM/H</small><span id="speed">0</span></div>
+    <div class="hud-item"><small>GEAR</small><span id="gear">1</span></div>
+    <div class="hud-item"><small>SCORE</small><span id="score">0</span></div>
+    <div class="hud-item"><small>STATUS</small><span id="status" style="font-size:14px; color:#00ffcc;">DRIVING</span></div>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script src="script2.js"></script>
+<script>
+/* ---------- OVERLAY + LEVEL LOGIC ---------- */
+function showLoading() {
+    if (sessionStorage.getItem("introDone") === "true") {
+        document.getElementById('splashScreen').classList.add('hidden');
+        document.getElementById('levelSelect').classList.remove('hidden');
+        return;
+    }
+    sessionStorage.setItem("introDone","true");
+    document.getElementById('splashScreen').classList.add('hidden');
+    document.getElementById('loadingScreen').classList.remove('hidden');
+
+    let progress=0;
+    const bar = document.getElementById('loadingBar');
+    const interval = setInterval(()=>{
+        progress += Math.random()*3;
+        if(progress>100) progress=100;
+        bar.style.width = progress + "%";
+        if(progress>=100){
+            clearInterval(interval);
+            setTimeout(()=>{
+                document.getElementById('loadingScreen').classList.add('hidden');
+                document.getElementById('infoScreen').classList.remove('hidden');
+            },400);
+        }
+    },30);
+}
+
+function showLevelSelect() {
+    document.getElementById('infoScreen').classList.add('hidden');
+    document.getElementById('levelSelect').classList.remove('hidden');
+}
+function backToMain() {
+    document.getElementById('infoScreen').classList.add('hidden');
+    document.getElementById('splashScreen').classList.remove('hidden');
+}
+function hideLevels() {
+    document.getElementById('levelSelect').classList.add('hidden');
+    document.getElementById('splashScreen').classList.remove('hidden');
+}
+function startLevel(lvl){
+    const card = document.querySelectorAll('.level-card')[lvl-1];
+    if(card.classList.contains('locked')) { alert("Score higher to unlock this circuit!"); return; }
+    document.getElementById('levelSelect').classList.add('hidden');
+    document.getElementById('hud').classList.remove('hidden');
+    sessionStorage.setItem("gameLevel",lvl);
+    if(typeof initGame==="function"){ initGame(lvl); }
+}
+function showUnlockMessage(level){
+    const msgDiv = document.getElementById('unlockMsg');
+    msgDiv.textContent = `Level ${level} Unlocked!`;
+    msgDiv.classList.add('show');
+    setTimeout(()=>{ msgDiv.classList.remove('show'); },2500);
+}
+window.triggerGameOver = function(score){
+    document.getElementById('hud').classList.add('hidden');
+    document.getElementById('gameOverScreen').classList.remove('hidden');
+    document.getElementById('finalScore').textContent=Math.floor(score);
+
+    const highScore=sessionStorage.getItem("highScore")||0;
+    if(score>500 && highScore<=500){
+        sessionStorage.setItem("highScore",score);
+        document.getElementById('lvl2').classList.remove('locked');
+        showUnlockMessage(2);
+    }
+    if(score>1500 && highScore<=1500){
+        sessionStorage.setItem("highScore",score);
+        document.getElementById('lvl3').classList.remove('locked');
+        showUnlockMessage(3);
+    }
+}
+function restartGame(){
+    document.getElementById('gameOverScreen').classList.add('hidden');
+    document.getElementById('hud').classList.remove('hidden');
+    document.getElementById("status").textContent = "DRIVING";
+    const currentLvl=sessionStorage.getItem("gameLevel")||1;
+    if(typeof initGame==="function")
+    { 
+        initGame(currentLvl); document.getElementById('hud').classList.remove('hidden');
+    }
+    else { 
+        location.reload(); 
+         }
+}
+window.onload = ()=>{
+    const highScore=sessionStorage.getItem("highScore")||0;
+    if(highScore>500) document.getElementById('lvl2').classList.remove('locked');
+    if(highScore>1500) document.getElementById('lvl3').classList.remove('locked');
+};
+</script>
+</body>
+</html>
